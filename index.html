@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unduh Aplikasi Monitoring Digital Air & CH</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; }
+    .ripple-bg {
+        background-image:
+            radial-gradient(circle at 15% 20%, rgba(255,255,255,0.08) 0, transparent 45%),
+            radial-gradient(circle at 85% 75%, rgba(255,255,255,0.06) 0, transparent 40%);
+    }
+    @keyframes float-slow {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-6px); }
+    }
+    .float-slow { animation: float-slow 4s ease-in-out infinite; }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <!-- ============================================================ -->
+    <!-- HERO -->
+    <!-- ============================================================ -->
+    <header class="relative bg-emerald-800 ripple-bg text-white overflow-hidden">
+        <div class="max-w-3xl mx-auto px-6 pt-14 pb-16 text-center">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-700/60 border border-emerald-500/40 mb-5 float-slow">
+                <i class="fa-solid fa-water text-2xl"></i>
+            </div>
+            <h1 class="text-2xl sm:text-3xl font-bold tracking-wide leading-snug">
+                Monitoring Digital Air &amp; Curah Hujan
+            </h1>
+            <p class="text-emerald-200 text-sm mt-3 max-w-md mx-auto leading-relaxed">
+                Aplikasi rekap data lapangan yang berjalan langsung di browser HP atau laptop —
+                tanpa instalasi, tanpa koneksi internet wajib.
+            </p>
+
+            <div class="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <button id="download-btn" onclick="downloadApp()"
+                   class="w-full sm:w-auto bg-white text-emerald-800 font-bold px-6 py-3 rounded-lg shadow-lg hover:bg-emerald-50 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-download"></i> Download Aplikasi (.html)
+                </button>
+                <a href="monitoring.html" target="_blank" rel="noopener"
+                   class="w-full sm:w-auto border border-emerald-400/70 text-emerald-100 font-medium px-6 py-3 rounded-lg hover:bg-emerald-700/50 transition flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-up-right-from-square"></i> Buka Langsung di Browser
+                </a>
+            </div>
+            <p class="text-emerald-300/80 text-xs mt-4">
+                <i class="fa-solid fa-circle-info"></i> Ukuran file kecil (± 50&nbsp;KB) — aman dikirim lewat WhatsApp/email bila perlu.
+            </p>
+            <p id="download-error" class="hidden text-amber-200 text-xs mt-3 max-w-md mx-auto bg-emerald-900/60 border border-amber-300/40 rounded-lg px-3 py-2">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                Download otomatis gagal. Ketuk tombol <b>"Buka Langsung di Browser"</b>, lalu di halaman yang terbuka gunakan menu browser
+                <b>⋮ / Bagikan → Simpan Halaman / Save Page As...</b> untuk menyimpannya secara manual.
+            </p>
+        </div>
+        <svg class="block w-full text-slate-100" viewBox="0 0 1440 48" fill="currentColor" preserveAspectRatio="none" style="height: 32px;">
+            <path d="M0,32 C240,0 480,48 720,24 C960,0 1200,48 1440,16 L1440,48 L0,48 Z"></path>
+        </svg>
+    </header>
+
+    <!-- ============================================================ -->
+    <!-- FITUR -->
+    <!-- ============================================================ -->
+    <main class="max-w-3xl mx-auto px-6 -mt-2 pb-16">
+
+        <section class="grid sm:grid-cols-2 gap-4 mb-10">
+            <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+                <div class="w-10 h-10 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center mb-3">
+                    <i class="fa-solid fa-plug-circle-bolt"></i>
+                </div>
+                <h3 class="font-semibold text-sm mb-1">Offline-First</h3>
+                <p class="text-xs text-slate-500 leading-relaxed">Data tersimpan langsung di perangkat. Input data tetap bisa dilakukan meski sinyal hilang di lapangan.</p>
+            </div>
+            <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+                <div class="w-10 h-10 rounded-lg bg-sky-100 text-sky-700 flex items-center justify-center mb-3">
+                    <i class="fa-solid fa-cloud-arrow-up"></i>
+                </div>
+                <h3 class="font-semibold text-sm mb-1">Sinkron ke Google Sheets</h3>
+                <p class="text-xs text-slate-500 leading-relaxed">Begitu tersambung internet, data terkirim ke cloud secara manual atau otomatis.</p>
+            </div>
+            <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+                <div class="w-10 h-10 rounded-lg bg-teal-100 text-teal-700 flex items-center justify-center mb-3">
+                    <i class="fa-solid fa-table-list"></i>
+                </div>
+                <h3 class="font-semibold text-sm mb-1">3 Jenis Data Lapangan</h3>
+                <p class="text-xs text-slate-500 leading-relaxed">Curah Hujan, Water Level (Peilschaal), dan Water Depth/Water Table dalam satu aplikasi.</p>
+            </div>
+            <div class="bg-white rounded-lg border border-slate-200 shadow-sm p-5">
+                <div class="w-10 h-10 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center mb-3">
+                    <i class="fa-solid fa-file-excel"></i>
+                </div>
+                <h3 class="font-semibold text-sm mb-1">Ekspor ke Excel</h3>
+                <p class="text-xs text-slate-500 leading-relaxed">Rekap semua data kapan saja menjadi file .xlsx multi-sheet, siap dilaporkan.</p>
+            </div>
+        </section>
+
+        <!-- ============================================================ -->
+        <!-- CARA PAKAI -->
+        <!-- ============================================================ -->
+        <section class="bg-white rounded-lg border border-slate-200 shadow-sm p-6 mb-10">
+            <h2 class="font-bold text-slate-800 mb-5 flex items-center gap-2">
+                <i class="fa-solid fa-list-check text-emerald-700"></i> Cara Menggunakan
+            </h2>
+            <ol class="space-y-4">
+                <li class="flex gap-3">
+                    <span class="shrink-0 w-6 h-6 rounded-full bg-emerald-700 text-white text-xs font-bold flex items-center justify-center">1</span>
+                    <p class="text-sm text-slate-600 pt-0.5">Ketuk tombol <b>Download Aplikasi (.html)</b> di atas, file akan tersimpan ke folder Download di HP/laptop Anda.</p>
+                </li>
+                <li class="flex gap-3">
+                    <span class="shrink-0 w-6 h-6 rounded-full bg-emerald-700 text-white text-xs font-bold flex items-center justify-center">2</span>
+                    <p class="text-sm text-slate-600 pt-0.5">Buka file tersebut dari File Manager/Downloads dengan mengetuknya — file akan terbuka otomatis di browser (Chrome/Safari).</p>
+                </li>
+                <li class="flex gap-3">
+                    <span class="shrink-0 w-6 h-6 rounded-full bg-emerald-700 text-white text-xs font-bold flex items-center justify-center">3</span>
+                    <p class="text-sm text-slate-600 pt-0.5">Masukkan password akses aplikasi saat diminta. Belum punya password? Hubungi admin/koordinator lapangan Anda.</p>
+                </li>
+                <li class="flex gap-3">
+                    <span class="shrink-0 w-6 h-6 rounded-full bg-emerald-700 text-white text-xs font-bold flex items-center justify-center">4</span>
+                    <p class="text-sm text-slate-600 pt-0.5">Mulai input data survei. Aplikasi bisa dipakai berulang kali secara offline langsung dari file yang sudah diunduh.</p>
+                </li>
+            </ol>
+        </section>
+
+        <p class="text-center text-xs text-slate-400">
+            Simpan file hasil unduhan di tempat yang mudah diakses (mis. beri pintasan di layar utama HP) agar tidak perlu memindai ulang setiap kali survei.
+        </p>
+    </main>
+
+    <footer class="border-t border-slate-200 py-6 text-center text-xs text-slate-400">
+        Monitoring Digital Air &amp; Curah Hujan &middot; Halaman Unduh Aplikasi
+    </footer>
+
+    <script>
+        // Download via fetch + Blob agar lebih andal daripada atribut
+        // `download` polos pada <a> (yang sering diblokir browser saat
+        // dibuka dari file lokal / preview, di luar server http/https).
+        async function downloadApp() {
+            const btn = document.getElementById('download-btn');
+            const errorBox = document.getElementById('download-error');
+            const originalHtml = btn.innerHTML;
+            errorBox.classList.add('hidden');
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menyiapkan file...';
+
+            try {
+                const response = await fetch('monitoring.html');
+                if (!response.ok) throw new Error('File tidak ditemukan di server (status ' + response.status + ')');
+
+                const blob = await response.blob();
+                const blobUrl = URL.createObjectURL(blob);
+
+                const link = document.createElement('a');
+                link.href = blobUrl;
+                link.download = 'Monitoring_Digital_Air_CH.html';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
+            } catch (err) {
+                console.error(err);
+                errorBox.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalHtml;
+            }
+        }
+    </script>
+
+</body>
+</html>
