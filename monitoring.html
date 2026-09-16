@@ -420,8 +420,8 @@
     <!-- ============================================================ -->
     <!-- MODAL: REKAP DATA DARI CLOUD (Google Sheets)                  -->
     <!-- ============================================================ -->
-    <div id="cloud-recap-modal" class="hidden fixed inset-0 z-[90] bg-black/50 flex items-start md:items-center justify-center p-2 md:p-6 overflow-y-auto">
-        <div class="bg-white w-full max-w-6xl rounded-lg shadow-xl my-4 md:my-0 flex flex-col max-h-[95vh]">
+    <div id="cloud-recap-modal" class="hidden fixed inset-0 z-[90] bg-black/50 flex items-start md:items-center justify-center p-2 md:p-4 overflow-y-auto">
+        <div class="bg-white w-full max-w-[98vw] xl:max-w-[1600px] rounded-lg shadow-xl my-2 md:my-0 flex flex-col h-[96vh] md:h-[92vh]">
             <div class="flex items-center justify-between p-4 border-b shrink-0">
                 <h3 class="font-bold text-slate-800 flex items-center gap-2">
                     <i class="fa-solid fa-cloud text-indigo-600"></i> Rekap Data dari Google Sheets (Cloud)
@@ -467,8 +467,8 @@
             </div>
 
             <div class="p-4 overflow-auto flex-1">
-                <div class="overflow-x-auto border rounded border-slate-200">
-                    <table class="w-full text-left text-[11px] text-slate-700" id="cloud-data-table">
+                <div class="overflow-x-auto border rounded border-slate-200 h-full">
+                    <table class="w-full text-left text-xs text-slate-700" id="cloud-data-table">
                         <thead class="bg-slate-100 border-b font-semibold text-slate-800 sticky top-0">
                             <tr id="cloud-table-head"></tr>
                             <tr id="cloud-table-filters" class="bg-white"></tr>
@@ -625,25 +625,40 @@
         }
 
         // Tukar tampilan antara dropdown pilihan vs input teks manual.
-        // Atribut "name" dipindah ke elemen yang sedang aktif saja, supaya
-        // FormData hanya membaca satu nilai (bukan dua-duanya).
+        // Atribut "name" DAN "required" dipindah ke elemen yang sedang aktif
+        // saja. Ini penting: kalau elemen yang disembunyikan (display:none)
+        // masih membawa atribut "required", validasi form browser akan GAGAL
+        // secara diam-diam (tanpa pesan apa pun terlihat, karena elemennya
+        // tersembunyi) sehingga tombol Save/Kirim/Ekspor terkesan "tidak
+        // berfungsi" padahal sebenarnya form batal tersimpan karena gagal
+        // validasi. Status wajib-isi (required) asli disimpan sekali di
+        // dataset.required supaya tetap konsisten setiap kali mode ditukar.
         function setStationInputMode(category, fieldName, mode) {
             const sel = document.getElementById(`sel_${fieldName}_${category}`);
             const txt = document.getElementById(`txt_${fieldName}_${category}`);
             if (!sel || !txt) return;
 
+            if (sel.dataset.required === undefined) {
+                sel.dataset.required = (sel.hasAttribute('required') || txt.hasAttribute('required')) ? '1' : '0';
+            }
+            const isRequired = sel.dataset.required === '1';
+
             if (mode === 'manual') {
                 sel.classList.add('hidden');
                 sel.removeAttribute('name');
+                sel.removeAttribute('required');
                 txt.classList.remove('hidden');
                 txt.setAttribute('name', fieldName);
+                if (isRequired) txt.setAttribute('required', ''); else txt.removeAttribute('required');
                 txt.value = '';
             } else {
                 txt.classList.add('hidden');
                 txt.removeAttribute('name');
+                txt.removeAttribute('required');
                 txt.value = '';
                 sel.classList.remove('hidden');
                 sel.setAttribute('name', fieldName);
+                if (isRequired) sel.setAttribute('required', ''); else sel.removeAttribute('required');
             }
         }
 
