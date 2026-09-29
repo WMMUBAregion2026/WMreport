@@ -1012,11 +1012,11 @@
             }
         }
 
-        // Automatic WT Calculation: WT = Kedalaman Air Pipa - Tinggi Pipa (atau penyesuaian lapangan)
+        // Automatic WT Calculation: WT = Kedalaman Air Pipa + Tinggi Pipa (contoh: -0.6 + 0.5 = -0.10)
         function calcWT() {
             const tp = parseFloat(document.getElementById('tinggi_pipa').value) || 0;
             const kap = parseFloat(document.getElementById('kedalaman_air').value) || 0;
-            const wt = kap - tp;
+            const wt = kap + tp;
             document.getElementById('wt').value = wt ? wt.toFixed(2) : '0.00';
         }
 
