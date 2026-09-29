@@ -1384,6 +1384,28 @@
             }
         }
 
+        // Tampilan kolom waktu/tanggal dari Google Sheets: Sheets menyimpan tanggal saja sebagai
+        // "YYYY-MM-DD 00:00:00" dan jam saja sebagai "1899-12-30 HH:MM:SS". Buang bagian yang tidak relevan.
+        function cloudCellText(col, val) {
+            if (val === undefined || val === null || val === '') return val;
+            const key = String(col).toLowerCase().replace(/[\s_]+/g, '');
+            const s = String(val).trim();
+            if (key === 'tglsurvey' || key === 'tanggalsurvey') {
+                const m = s.match(/^(\d{4}-\d{2}-\d{2})[ T]/);
+                return m ? m[1] : s;
+            }
+            if (key === 'waktusurvey') {
+                const m = s.match(/^\d{4}-\d{2}-\d{2}[ T](\d{2}:\d{2}(?::\d{2})?)/);
+                return m ? m[1] : s;
+            }
+            return val;
+        }
+        function cloudRowForDisplay(row) {
+            const out = {};
+            Object.keys(row).forEach(k => { out[k] = cloudCellText(k, row[k]); });
+            return out;
+        }
+
         // Terapkan filter per-kolom + filter rentang tanggal terhadap data mentah
         function getCloudFilteredData() {
             const dateFrom = document.getElementById('cloud-date-from').value;
@@ -1393,7 +1415,7 @@
                 for (const key in cloudColumnFilters) {
                     const filterVal = cloudColumnFilters[key];
                     if (!filterVal) continue;
-                    const cellVal = String(row[key] !== undefined ? row[key] : '').toLowerCase();
+                    const cellVal = String(row[key] !== undefined ? cloudCellText(key, row[key]) : '').toLowerCase();
                     if (!cellVal.includes(filterVal)) return false;
                 }
                 if (dateFrom || dateTo) {
@@ -1457,7 +1479,8 @@
                 cloudColumns.forEach(col => {
                     const td = document.createElement('td');
                     td.className = 'p-2 border-slate-100 whitespace-nowrap';
-                    td.innerText = (row[col] !== undefined && row[col] !== '') ? row[col] : '-';
+                    const shown = cloudCellText(col, row[col]);
+                    td.innerText = (shown !== undefined && shown !== '') ? shown : '-';
                     tr.appendChild(td);
                 });
                 bodyEl.appendChild(tr);
@@ -1501,7 +1524,7 @@
                 try {
                     const category = document.getElementById('cloud-category').value;
                     const wb = XLSX.utils.book_new();
-                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filtered), category.toUpperCase());
+                    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(filtered.map(cloudRowForDisplay)), category.toUpperCase());
                     const dateFrom = document.getElementById('cloud-date-from').value;
                     const dateTo = document.getElementById('cloud-date-to').value;
                     const rangeLabel = (dateFrom || dateTo) ? `_${dateFrom || 'awal'}_sd_${dateTo || 'akhir'}` : '';
