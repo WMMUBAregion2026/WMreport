@@ -137,10 +137,16 @@
                 </h1>
                 <p class="text-xs text-emerald-200">Aplikasi Rekap Lapangan Offline-First</p>
             </div>
+            <div class="flex items-center gap-2 flex-wrap justify-end">
+            <div id="gps-status" onclick="retryGeo()" title="Mencari lokasi perangkat..." style="cursor:pointer" class="flex items-center gap-2 bg-emerald-900 px-3 py-1 rounded-full text-xs font-semibold text-emerald-300">
+                <span id="gps-dot" class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block animate-pulse"></span>
+                <span id="gps-text">GPS</span>
+            </div>
             <div id="connection-status" class="flex items-center gap-2 bg-emerald-900 px-3 py-1 rounded-full text-xs font-semibold text-emerald-300">
                 <span id="connection-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
                 <span id="connection-text">Online</span>
                 <span id="pending-badge" class="hidden bg-amber-400 text-amber-900 rounded-full px-2 py-0.5 ml-1">0</span>
+            </div>
             </div>
         </div>
     </header>
@@ -619,6 +625,82 @@
         window.addEventListener('resize', syncHeaderHeight);
 
         // ==========================================================
+        // GEOLOCATION - koordinat perangkat saat data diinput
+        // ==========================================================
+        // Tujuan: bukti bahwa petugas benar-benar berada di lokasi saat mengambil data.
+        // GPS perangkat bekerja TANPA internet, jadi koordinat tetap terekam saat offline.
+        // Koordinat disimpan di dalam record (latitude, longitude) dan ikut terkirim ke cloud
+        // seperti field lain. Jika GPS tidak tersedia, data TETAP tersimpan (koordinat kosong).
+        const GEO = { last: null, state: 'wait', warming: null, warned: false };
+        const GEO_FRESH_MS = 30 * 1000;       // fix <= 30 detik langsung dipakai
+        const GEO_MAX_AGE_MS = 5 * 60 * 1000; // fix > 5 menit dianggap basi, tidak dipakai
+        const GEO_SAVE_TIMEOUT_MS = 8000;     // batas tunggu GPS saat tombol simpan ditekan
+        const round6 = n => Math.round(n * 1e6) / 1e6;
+        const geoAge = () => GEO.last ? Date.now() - GEO.last.ts : Infinity;
+
+        function setGeoChip(state, detail) {
+            GEO.state = state;
+            const dot = document.getElementById('gps-dot'), text = document.getElementById('gps-text'), chip = document.getElementById('gps-status');
+            if (!dot || !text) return;
+            const map = {
+                ok:     ['bg-emerald-400', `GPS ±${detail} m`, 'Lokasi perangkat terbaca. Koordinat ikut tersimpan bersama data.'],
+                wait:   ['bg-amber-400', 'GPS: mencari...', 'Sedang mencari sinyal GPS...'],
+                weak:   ['bg-amber-400', 'GPS: sinyal lemah', 'Sinyal GPS belum didapat. Pindah ke area terbuka. Ketuk untuk coba lagi.'],
+                denied: ['bg-rose-400', 'GPS: izin ditolak', 'Izin lokasi ditolak. Aktifkan izin lokasi untuk situs ini di pengaturan browser, lalu ketuk untuk coba lagi.'],
+                na:     ['bg-rose-400', 'GPS: tidak tersedia', 'Browser/perangkat ini tidak mendukung lokasi (butuh HTTPS dan perangkat dengan GPS).']
+            };
+            const [cls, label, tip] = map[state] || map.wait;
+            dot.className = `w-2.5 h-2.5 rounded-full inline-block ${state === 'wait' ? 'animate-pulse ' : ''}${cls}`;
+            text.innerText = label;
+            if (chip) chip.title = tip;
+        }
+        function onGeoFix(pos) {
+            GEO.last = { latitude: round6(pos.coords.latitude), longitude: round6(pos.coords.longitude), acc: pos.coords.accuracy, ts: pos.timestamp || Date.now() };
+            setGeoChip('ok', Math.round(pos.coords.accuracy));
+        }
+        function onGeoError(err) {
+            if (err && err.code === 1) {
+                setGeoChip('denied');
+                if (!GEO.warned) { GEO.warned = true; showToast('Izin lokasi ditolak. Koordinat tidak akan terekam sampai izin lokasi diaktifkan.', 'warning', 5000); }
+            } else if (GEO.state !== 'ok' || geoAge() > GEO_MAX_AGE_MS) setGeoChip('weak');
+        }
+        function fetchGeoFix(opts) {
+            return new Promise((resolve, reject) => {
+                if (!navigator.geolocation || window.isSecureContext === false) { setGeoChip('na'); return reject({ code: 0 }); }
+                navigator.geolocation.getCurrentPosition(
+                    pos => { onGeoFix(pos); resolve(GEO.last); },
+                    err => { onGeoError(err); reject(err); },
+                    Object.assign({ enableHighAccuracy: true }, opts)
+                );
+            });
+        }
+        // "Panaskan" GPS di latar belakang (saat aplikasi dibuka & saat form disentuh)
+        // agar koordinat sudah siap ketika tombol simpan ditekan. Tidak memantau terus-menerus (hemat baterai).
+        function warmGeo() {
+            if (GEO.state === 'denied' || GEO.state === 'na' || GEO.warming || geoAge() <= GEO_FRESH_MS) return;
+            GEO.warming = fetchGeoFix({ timeout: 15000, maximumAge: 15000 }).catch(() => {}).finally(() => { GEO.warming = null; });
+        }
+        function retryGeo() { GEO.warned = false; GEO.warming = null; setGeoChip('wait'); warmGeo(); }
+        // Koordinat untuk record yang akan disimpan: fix segar -> ambil baru -> fix terakhir (maks 5 menit) -> kosong
+        async function getGeoForSave() {
+            const pick = l => ({ latitude: l.latitude, longitude: l.longitude });
+            if (geoAge() <= GEO_FRESH_MS) return pick(GEO.last);
+            try { return pick(await fetchGeoFix({ timeout: GEO_SAVE_TIMEOUT_MS, maximumAge: 0 })); } catch (e) { /* lanjut ke fix terakhir */ }
+            if (geoAge() <= GEO_MAX_AGE_MS) return pick(GEO.last);
+            return { latitude: '', longitude: '' };
+        }
+        // Sama seperti buildRecord, ditambah latitude & longitude
+        async function buildRecordWithGeo(form) {
+            const rec = buildRecord(form); // snapshot isi form dulu, sebelum menunggu GPS
+            form.dataset.geoBusy = '1';
+            try { Object.assign(rec, await getGeoForSave()); }
+            finally { delete form.dataset.geoBusy; }
+            if (rec.latitude === '') showToast('Koordinat lokasi belum terekam (GPS belum aktif atau izin lokasi ditolak). Data tetap disimpan.', 'warning', 4500);
+            return rec;
+        }
+        document.addEventListener('focusin', e => { if (e.target && e.target.closest && e.target.closest('form[id^="form-"]')) warmGeo(); });
+
+        // ==========================================================
         // PEMBUAT FILE .xlsx BAWAAN (tanpa pustaka luar -> jalan 100% offline)
         // API-nya meniru SheetJS (XLSX.utils.*, XLSX.writeFile) sehingga kode ekspor lain tidak berubah.
         // ==========================================================
@@ -699,6 +781,7 @@
             if (gate) gate.remove();
             document.getElementById('app-content').classList.remove('hidden');
             syncHeaderHeight();
+            warmGeo();
             if (!navigator.onLine) showToast('Mode offline aktif. Data disimpan di perangkat dan dikirim otomatis saat koneksi kembali.', 'info', 4500);
         }
 
@@ -1027,13 +1110,15 @@
                 ['region', 'Region'], ['district', 'District'], ['kode_stasiun', 'Kode Stasiun CH'],
                 ['nama_stasiun', 'Nama Stasiun'], ['ogl', 'OGL (m)'], ['tgl_survey', 'Tgl Survey'],
                 ['waktu_survey', 'Waktu Survey'], ['curah_hujan', 'Curah Hujan (mm)'],
-                ['surveyor', 'Surveyor'], ['keterangan', 'Keterangan']
+                ['surveyor', 'Surveyor'], ['keterangan', 'Keterangan'],
+                ['latitude', 'Latitude'], ['longitude', 'Longitude']
             ],
             'water-level': [
                 ['region', 'Region'], ['district', 'District'], ['kode_peilschaal', 'Kode Peilschaal'],
                 ['nama_peilschaal', 'Nama Peilschaal'], ['ogl', 'OGL (m)'], ['tgl_survey', 'Tgl Survey'],
                 ['waktu_survey', 'Waktu Survey'], ['stasiun_ch', 'Stasiun CH'], ['curah_hujan', 'Curah Hujan (mm)'],
-                ['water_level', 'Water Level (m)'], ['surveyor', 'Surveyor'], ['keterangan', 'Keterangan']
+                ['water_level', 'Water Level (m)'], ['surveyor', 'Surveyor'], ['keterangan', 'Keterangan'],
+                ['latitude', 'Latitude'], ['longitude', 'Longitude']
             ],
             'water-depth': [
                 ['region', 'Region'], ['district', 'District'], ['tipe_pantau', 'Tipe Titik Pantau'],
@@ -1042,7 +1127,8 @@
                 ['curah_hujan', 'Curah Hujan (mm)'], ['tinggi_instalasi', 'Tinggi Pipa Instalasi (m)'],
                 ['tinggi_pipa', 'Tinggi Pipa (m)'], ['kedalaman_air', 'Kedalaman Air Pipa (m)'],
                 ['wt', 'WT (m)'], ['petak_id', 'Petak ID'], ['plant_date', 'Plant Date'],
-                ['surveyor', 'Surveyor'], ['keterangan', 'Keterangan']
+                ['surveyor', 'Surveyor'], ['keterangan', 'Keterangan'],
+                ['latitude', 'Latitude'], ['longitude', 'Longitude']
             ]
         };
 
@@ -1132,6 +1218,7 @@
         }
 
         function guardForm(form, btn) {
+            if (form.dataset.geoBusy) { showToast('Sedang mengambil koordinat lokasi, tunggu sebentar.', 'info', 2500); return false; }
             if (form.reportValidity()) return true;
             showToast('Lengkapi dulu kolom wajib yang bertanda *.', 'warning');
             setBtnResult(btn, 'warn', 'Belum lengkap', 1300);
@@ -1143,9 +1230,9 @@
             const form = document.getElementById(`form-${category}`);
             if (!guardForm(form, btn)) return;
             setBtnLoading(btn, true, 'Menyimpan...');
-            setTimeout(() => {
+            setTimeout(async () => {
                 try {
-                    appendRecord(category, buildRecord(form));
+                    appendRecord(category, await buildRecordWithGeo(form));
                     form.reset(); resetFormDefaults(form); updateConnectionStatus();
                     showToast(`Data ${NOTIF_LABEL(category)} berhasil disimpan secara lokal.`, 'success');
                     setBtnResult(btn, 'success', 'Tersimpan');
@@ -1162,10 +1249,10 @@
             const form = document.getElementById(`form-${category}`);
             if (!guardForm(form, btn)) return;
             setBtnLoading(btn, true, 'Menyimpan & Ekspor...');
-            setTimeout(() => {
+            setTimeout(async () => {
                 let saved = false;
                 try {
-                    const rec = buildRecord(form);
+                    const rec = await buildRecordWithGeo(form);
                     appendRecord(category, rec); saved = true;
                     const { id, synced, ...exportObj } = rec;
                     exportSingleFormToExcel(category, [exportObj]);
@@ -1207,7 +1294,7 @@
             setBtnLoading(btn, true, 'Mengirim...');
             let state = 'error', label = 'Gagal';
             try {
-                const rec = buildRecord(form);
+                const rec = await buildRecordWithGeo(form);
                 appendRecord(category, rec); // offline-first: selalu simpan lokal dulu
                 if (!navigator.onLine) {
                     showToast('Offline. Data tetap tersimpan di perangkat dan akan disinkronkan saat koneksi kembali.', 'warning', 4500);
