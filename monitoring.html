@@ -647,6 +647,7 @@
                 wait:   ['bg-amber-400', 'GPS: mencari...', 'Sedang mencari sinyal GPS...'],
                 weak:   ['bg-amber-400', 'GPS: sinyal lemah', 'Sinyal GPS belum didapat. Pindah ke area terbuka. Ketuk untuk coba lagi.'],
                 denied: ['bg-rose-400', 'GPS: izin ditolak', 'Izin lokasi ditolak. Aktifkan izin lokasi untuk situs ini di pengaturan browser, lalu ketuk untuk coba lagi.'],
+                origin: ['bg-rose-400', 'GPS: buka via HTTPS', 'Aplikasi dibuka dari file/WhatsApp (content://), jadi browser memblokir lokasi tanpa menampilkan izin. Buka lewat link HTTPS agar izin lokasi bisa muncul.'],
                 na:     ['bg-rose-400', 'GPS: tidak tersedia', 'Browser/perangkat ini tidak mendukung lokasi (butuh HTTPS dan perangkat dengan GPS).']
             };
             const [cls, label, tip] = map[state] || map.wait;
@@ -658,15 +659,23 @@
             GEO.last = { latitude: round6(pos.coords.latitude), longitude: round6(pos.coords.longitude), acc: pos.coords.accuracy, ts: pos.timestamp || Date.now() };
             setGeoChip('ok', Math.round(pos.coords.accuracy));
         }
+        // Chrome menolak lokasi (tanpa pop up izin) untuk halaman yang dibuka dari content:// (WhatsApp/penyimpanan) atau non-HTTPS.
+        const geoBadOrigin = () => location.protocol === 'content:' || window.isSecureContext === false;
+        function warnGeoOrigin() {
+            if (GEO.originWarned) return; GEO.originWarned = true;
+            showToast('Aplikasi dibuka dari file/WhatsApp sehingga browser memblokir lokasi. Buka lewat link HTTPS agar izin lokasi muncul. Data tetap bisa disimpan tanpa koordinat.', 'warning', 9000);
+        }
         function onGeoError(err) {
-            if (err && err.code === 1) {
+            if (err && err.code === 1 && geoBadOrigin()) { setGeoChip('origin'); warnGeoOrigin(); }
+            else if (err && err.code === 1) {
                 setGeoChip('denied');
                 if (!GEO.warned) { GEO.warned = true; showToast('Izin lokasi ditolak. Koordinat tidak akan terekam sampai izin lokasi diaktifkan.', 'warning', 5000); }
             } else if (GEO.state !== 'ok' || geoAge() > GEO_MAX_AGE_MS) setGeoChip('weak');
         }
         function fetchGeoFix(opts) {
             return new Promise((resolve, reject) => {
-                if (!navigator.geolocation || window.isSecureContext === false) { setGeoChip('na'); return reject({ code: 0 }); }
+                if (geoBadOrigin()) { setGeoChip('origin'); warnGeoOrigin(); return reject({ code: 0 }); }
+                if (!navigator.geolocation) { setGeoChip('na'); return reject({ code: 0 }); }
                 navigator.geolocation.getCurrentPosition(
                     pos => { onGeoFix(pos); resolve(GEO.last); },
                     err => { onGeoError(err); reject(err); },
@@ -677,10 +686,10 @@
         // "Panaskan" GPS di latar belakang (saat aplikasi dibuka & saat form disentuh)
         // agar koordinat sudah siap ketika tombol simpan ditekan. Tidak memantau terus-menerus (hemat baterai).
         function warmGeo() {
-            if (GEO.state === 'denied' || GEO.state === 'na' || GEO.warming || geoAge() <= GEO_FRESH_MS) return;
+            if (GEO.state === 'denied' || GEO.state === 'na' || GEO.state === 'origin' || GEO.warming || geoAge() <= GEO_FRESH_MS) return;
             GEO.warming = fetchGeoFix({ timeout: 15000, maximumAge: 15000 }).catch(() => {}).finally(() => { GEO.warming = null; });
         }
-        function retryGeo() { GEO.warned = false; GEO.warming = null; setGeoChip('wait'); warmGeo(); }
+        function retryGeo() { if (geoBadOrigin()) { GEO.originWarned = false; setGeoChip('origin'); warnGeoOrigin(); return; } GEO.warned = false; GEO.warming = null; setGeoChip('wait'); warmGeo(); }
         // Koordinat untuk record yang akan disimpan: fix segar -> ambil baru -> fix terakhir (maks 5 menit) -> kosong
         async function getGeoForSave() {
             const pick = l => ({ latitude: l.latitude, longitude: l.longitude });
@@ -695,7 +704,7 @@
             form.dataset.geoBusy = '1';
             try { Object.assign(rec, await getGeoForSave()); }
             finally { delete form.dataset.geoBusy; }
-            if (rec.latitude === '') showToast('Koordinat lokasi belum terekam (GPS belum aktif atau izin lokasi ditolak). Data tetap disimpan.', 'warning', 4500);
+            if (rec.latitude === '' && !GEO.originWarned) showToast('Koordinat lokasi belum terekam (GPS belum aktif atau izin lokasi ditolak). Data tetap disimpan.', 'warning', 4500);
             return rec;
         }
         document.addEventListener('focusin', e => { if (e.target && e.target.closest && e.target.closest('form[id^="form-"]')) warmGeo(); });
@@ -1307,7 +1316,7 @@
                         state = 'success'; label = 'Terkirim';
                     } catch (err) {
                         console.error(err);
-                        showToast('Data tersimpan lokal. Pengiriman ke cloud gagal dan akan dicoba lagi saat koneksi tersedia.', 'error', 5000);
+                        showToast('Data tersimpan lokal. Pengiriman ke cloud gagal: ' + ((err && err.message) || 'penyebab tidak diketahui') + ' Akan dicoba lagi saat koneksi tersedia.', 'error', 9000);
                         label = 'Gagal kirim';
                     }
                 }
@@ -1325,19 +1334,19 @@
             if (!navigator.onLine) { if (manual) { showToast('Tidak ada koneksi internet saat ini. Coba lagi nanti.', 'warning'); setBtnResult(btn, 'warn', 'Offline'); } return; }
             if (!gasReady()) { if (manual) { showToast('URL Web App GAS belum diisi. Lengkapi konfigurasi Web App terlebih dahulu.', 'error', 4500); setBtnResult(btn, 'error', 'URL belum diisi'); } return; }
             isSyncing = true; setBtnLoading(btn, true, 'Menyinkronkan...');
-            let ok = 0, fail = 0;
+            let ok = 0, fail = 0, lastErr = '';
             try {
                 for (const cat of DATA_CATEGORIES) {
                     const pending = readList(cat).filter(r => !r.synced), done = [];
                     for (let i = 0; i < pending.length; i++) {
                         try { await sendToGoogleSheets(cat, pending[i]); done.push(pending[i].id); ok++; }
-                        catch (e) { fail += pending.length - i; break; } // koneksi kemungkinan putus, hentikan antrean kategori ini
+                        catch (e) { lastErr = (e && e.message) || ''; fail += pending.length - i; break; } // koneksi kemungkinan putus, hentikan antrean kategori ini
                     }
                     if (done.length) markManyAsSynced(cat, done);
                 }
                 updateConnectionStatus(); renderTable();
                 if (ok === 0 && fail === 0) { if (manual) showToast('Tidak ada data offline yang perlu disinkronkan. Semua data sudah terkirim ke cloud.', 'info'); }
-                else showToast(`Sinkronisasi selesai. Berhasil dikirim: ${ok} data.` + (fail ? ` Gagal/masih offline: ${fail} data, akan dicoba lagi otomatis.` : ''), fail ? 'warning' : 'success', 5000);
+                else showToast(`Sinkronisasi selesai. Berhasil dikirim: ${ok} data.` + (fail ? ` Gagal/masih offline: ${fail} data, akan dicoba lagi otomatis.` + (lastErr ? ` Penyebab: ${lastErr}` : '') : ''), fail ? 'warning' : 'success', fail ? 9000 : 5000);
             } catch (err) {
                 console.error(err); fail = fail || 1;
                 showToast('Sinkronisasi gagal: ' + err.message, 'error', 5000);
